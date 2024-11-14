@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, TextInput } from 'react-native';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 import RecordingsScreen from './RecordingsScreen';
 import { openDB } from 'idb';
 
 let dbPromise;
-
 if (typeof window !== 'undefined' && 'indexedDB' in window) {
   dbPromise = openDB('voice-notes', 1, {
     upgrade(db) {
@@ -15,14 +14,15 @@ if (typeof window !== 'undefined' && 'indexedDB' in window) {
   });
 }
 
-async function saveToIndexedDB(blob) {
+async function saveToIndexedDB(name, blob) {
   if (!dbPromise) return;
   const db = await dbPromise;
-  await db.add('notes', { blob, date: new Date() });
+  await db.add('notes', { name, blob, date: new Date() });
 }
 
 export default function App() {
   const [recording, setRecording] = useState(null);
+  const [recordingName, setRecordingName] = useState('');
 
   const startRecording = async () => {
     try {
@@ -46,12 +46,12 @@ export default function App() {
       setRecording(null);
 
       if (Platform.OS !== 'web') {
-        const filename = `VoiceNote_${Date.now()}.m4a`;
+        const filename = `${recordingName || 'VoiceNote'}_${Date.now()}.m4a`;
         await FileSystem.moveAsync({ from: uri, to: FileSystem.documentDirectory + filename });
       } else {
         const response = await fetch(uri);
         const blob = await response.blob();
-        await saveToIndexedDB(blob);
+        await saveToIndexedDB(recordingName || `VoiceNote_${Date.now()}`, blob);
         alert('Recording saved in IndexedDB.');
       }
     } catch (error) {
@@ -62,10 +62,13 @@ export default function App() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Voice Recorder App</Text>
-      <TouchableOpacity
-        style={styles.recordButton}
-        onPress={recording ? stopRecording : startRecording}
-      >
+      <TextInput
+        style={styles.input}
+        placeholder="Enter Recording Name"
+        onChangeText={setRecordingName}
+        value={recordingName}
+      />
+      <TouchableOpacity style={styles.recordButton} onPress={recording ? stopRecording : startRecording}>
         <Text style={styles.buttonText}>{recording ? 'Stop Recording' : 'Start Recording'}</Text>
       </TouchableOpacity>
       <RecordingsScreen />
@@ -76,6 +79,7 @@ export default function App() {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, backgroundColor: '#fff' },
   title: { fontSize: 24, fontWeight: 'bold', textAlign: 'center', marginBottom: 10 },
+  input: { borderBottomWidth: 1, marginBottom: 15, paddingHorizontal: 8, paddingVertical: 5 },
   recordButton: { backgroundColor: '#0066cc', padding: 15, borderRadius: 5, alignItems: 'center' },
   buttonText: { color: '#fff', fontSize: 18 },
 });
